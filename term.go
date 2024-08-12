@@ -2,20 +2,21 @@ package slit
 
 import (
 	"bufio"
-	"code.cloudfoundry.org/bytefmt"
 	"context"
 	"fmt"
-	"github.com/nsf/termbox-go"
-	"github.com/tigrawap/slit/ansi"
-	"github.com/tigrawap/slit/filters"
-	"github.com/tigrawap/slit/logging"
-	"github.com/tigrawap/slit/utils"
 	"io"
 	"os"
 	"runtime"
 	"strconv"
 	"sync"
 	"time"
+
+	"code.cloudfoundry.org/bytefmt"
+	"github.com/nsf/termbox-go"
+	"github.com/tigrawap/slit/ansi"
+	"github.com/tigrawap/slit/filters"
+	"github.com/tigrawap/slit/logging"
+	"github.com/tigrawap/slit/utils"
 )
 
 type viewer struct {
@@ -454,7 +455,9 @@ func (v *viewer) processKey(ev termbox.Event) (a action) {
 func (v *viewer) resize(width, height int) {
 	v.sizeLock.Lock()
 	v.width, v.height = width, height
-	v.height-- // Saving one Line for infobar
+	if v.height > 0 {
+		v.height-- // Saving one Line for infobar
+	}
 	v.sizeLock.Unlock()
 	v.info.resize(v.width, v.height)
 	v.buffer.window = v.height
