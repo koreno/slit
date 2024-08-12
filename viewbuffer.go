@@ -2,10 +2,11 @@ package slit
 
 import (
 	"context"
-	"github.com/tigrawap/slit/filters"
-	"github.com/tigrawap/slit/logging"
 	"io"
 	"sync"
+
+	"github.com/tigrawap/slit/filters"
+	"github.com/tigrawap/slit/logging"
 )
 
 type viewBuffer struct {
@@ -245,6 +246,7 @@ func (b *viewBuffer) shiftToEnd() {
 		return
 	}
 	b.pos = len(b.buffer) - b.window
+	b.originalPos = b.currentLine().Pos
 }
 func (b *viewBuffer) toggleCurrentHighlight() {
 	b.buffer[b.pos].Highlighted = !b.buffer[b.pos].Highlighted

@@ -295,9 +295,8 @@ func (v *viewer) draw() {
 
 func (v *viewer) navigate(direction int) {
 	v.buffer.shift(direction)
-	v.following = false
-	if config.follow && !v.buffer.isFull() {
-		v.following = true
+	if config.follow {
+		v.following = false
 	}
 	v.draw()
 }
@@ -311,8 +310,10 @@ func (v *viewer) navigateEnd() {
 }
 
 func (v *viewer) navigateStart() {
-	v.following = false
 	v.buffer.reset(Pos{0, 0})
+	if config.follow {
+		v.following = false
+	}
 	v.draw()
 }
 
@@ -471,7 +472,7 @@ type infobarRequest struct {
 
 var requestSearch = make(chan infobarRequest)
 var requestRefresh = make(chan struct{})
-var requestRefill = make(chan struct{})
+var requestDraw = make(chan struct{})
 var requestStatusUpdate = make(chan LineNo)
 var requestKeepCharsChange = make(chan int)
 
@@ -535,9 +536,8 @@ loop:
 				v.processInfobarRequest(search)
 			case <-requestRefresh:
 				v.buffer.refresh()
+			case <-requestDraw:
 				v.draw()
-			case <-requestRefill: // It is not most efficient solution, it might cause huge amount of redraws
-				v.refill()
 			case line := <-requestStatusUpdate:
 				v.info.totalLines = line + 1
 				if v.focus == v {
@@ -552,24 +552,6 @@ loop:
 		}
 	}
 
-}
-func (v *viewer) refill() {
-	for {
-		result := v.buffer.fill()
-		if result.newLines != 0 {
-			v.buffer.shift(result.newLines)
-			if v.buffer.isFull() {
-				v.buffer.shiftToEnd()
-			}
-			v.draw()
-			continue
-		}
-		if result.lastLineChanged {
-			v.draw()
-			continue
-		}
-		return
-	}
 }
 
 func (v *viewer) saveFiltered(filename string) {
@@ -685,28 +667,27 @@ loop:
 }
 
 func (v *viewer) follow(ctx context.Context) {
-	delay := 100 * time.Millisecond
+	delay := 50 * time.Millisecond
 	lastOffset := v.fetcher.lastOffset()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(delay):
-			if !config.follow {
-				continue
-			}
-			if v.following {
-				prevOffset := lastOffset
-				lastOffset = v.fetcher.lastOffset()
-				if lastOffset != prevOffset {
-					go func() {
-						go termbox.Interrupt()
-						select {
-						case requestRefill <- struct{}{}:
-						case <-ctx.Done():
-							return
-						}
-					}()
+			prevOffset := lastOffset
+			lastOffset = v.fetcher.lastOffset()
+			if lastOffset != prevOffset {
+				result := v.buffer.fill()
+				if result.newLines != 0 {
+					if v.following && v.buffer.isFull() {
+						v.buffer.shiftToEnd()
+					}
+				}
+				go termbox.Interrupt()
+				select {
+				case requestDraw <- struct{}{}:
+				case <-ctx.Done():
+					return
 				}
 			}
 		}
